@@ -1,8 +1,8 @@
 export const PROPERTY_TYPES = [
   { key: 'all', label: 'All', icon: 'grid-outline' },
-  { key: 'apartment', label: 'Apartment', icon: 'business-outline' },
   { key: 'house', label: 'House', icon: 'home-outline' },
-  { key: 'studio', label: 'Studio', icon: 'bed-outline' },
+  { key: 'studio', label: 'Student', icon: 'bed-outline' },
+  { key: 'apartment', label: 'Apartment', icon: 'business-outline' },
 ];
 
 export const AMENITIES = [

@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Animated, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, cardShadow, radius } from '@/app/lib/theme';

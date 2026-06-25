@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { ImageBackground } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
