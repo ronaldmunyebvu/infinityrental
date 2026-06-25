@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl, Keyboard } from 'react-native';
 import { ImageBackground } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,25 +7,29 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/app/lib/supabase';
 import { useAuth } from '@/app/context/AuthContext';
 import { colors, radius, shadow } from '@/app/lib/theme';
-import { Property } from '@/app/lib/data';
+import { Property, HERO_IMAGE, PROPERTY_TYPES, DENSITY_TYPES } from '@/app/lib/types';
 import PropertyCard from '@/app/components/PropertyCard';
 import FilterChips from '@/app/components/FilterChips';
 import BottomNav from '@/app/components/BottomNav';
+import AdCarousel from '@/app/components/AdCarousel';
 
 const HERO = 'https://d64gsuwffb70l.cloudfront.net/6a3b8ba1dd44bfd49bd2cbd5_1782287526231_fe633117.png';
 
 export default function Home() {
   const router = useRouter();
-  const { user, profile, signOut } = useAuth();
+  const { user } = useAuth();
   const [props, setProps] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [type, setType] = useState('all');
   const [query, setQuery] = useState('');
-
+  const [showAdv, setShowAdv] = useState(false);
+  const [density, setDensity] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('properties').select('*').order('featured', { ascending: false }).order('created_at', { ascending: false });
+    const { data } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
     setProps((data as Property[]) || []);
     setLoading(false);
     setRefreshing(false);
@@ -34,13 +38,17 @@ export default function Home() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const filtered = props.filter((p) => {
-    const matchType = type === 'all' || p.type === type;
+    const matchType = type === 'all' || p.property_type === type;
+    const matchDensity = !density || (p as any).density === density;
+    const price = p.price || 0;
+    const matchMin = !minPrice || price >= Number(minPrice);
+    const matchMax = !maxPrice || price <= Number(maxPrice);
     const q = query.toLowerCase();
-    const matchQ = !q || p.title.toLowerCase().includes(q) || (p.location || '').toLowerCase().includes(q);
-    return matchType && matchQ;
+    const matchQ = !q || p.title.toLowerCase().includes(q) || (p.location || '').toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q);
+    return matchType && matchDensity && matchMin && matchMax && matchQ;
   });
 
-  const featured = props.filter((p) => p.featured).slice(0, 5);
+  const featured = props.filter((p) => (p as any).featured).slice(0, 5);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -57,7 +65,7 @@ export default function Home() {
           <TouchableOpacity
             style={styles.avatar}
             activeOpacity={0.8}
-            onPress={() => router.push(user ? (profile?.role === 'landlord' ? '/landlord' : '/auth') : '/auth')}
+            onPress={() => router.push(user ? '/landlord' : '/auth')}
           >
             <Ionicons name={user ? 'person' : 'log-in-outline'} size={20} color="#fff" />
           </TouchableOpacity>
@@ -72,13 +80,72 @@ export default function Home() {
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
+            returnKeyType="search"
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => setQuery('')}>
               <Ionicons name="close-circle" size={18} color={colors.lightGray} />
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            style={[styles.filterBtn, showAdv && styles.filterBtnActive]}
+            onPress={() => setShowAdv(!showAdv)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="options-outline" size={18} color={showAdv ? '#fff' : colors.primary} />
+          </TouchableOpacity>
         </View>
+
+        {/* Advanced filters panel */}
+        {showAdv && (
+          <View style={styles.advPanel}>
+            <Text style={styles.advLabel}>Price range ($/mo)</Text>
+            <View style={styles.priceRow}>
+              <TextInput
+                style={styles.priceInput}
+                placeholder="Min"
+                placeholderTextColor={colors.lightGray}
+                keyboardType="numeric"
+                value={minPrice}
+                onChangeText={setMinPrice}
+              />
+              <Text style={styles.dash}>-</Text>
+              <TextInput
+                style={styles.priceInput}
+                placeholder="Max"
+                placeholderTextColor={colors.lightGray}
+                keyboardType="numeric"
+                value={maxPrice}
+                onChangeText={setMaxPrice}
+              />
+            </View>
+            <Text style={[styles.advLabel, { marginTop: 12 }]}>Area density</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ gap: 8 }} contentContainerStyle={{ gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.densityChip, !density && styles.densityChipActive]}
+                onPress={() => setDensity('')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.densityTxt, !density && { color: '#fff' }]}>Any</Text>
+              </TouchableOpacity>
+              {DENSITY_TYPES.map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={[styles.densityChip, density === d && styles.densityChipActive]}
+                  onPress={() => setDensity(d)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.densityTxt, density === d && { color: '#fff' }]}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={styles.advResultRow}>
+              <Text style={styles.advResultTxt}>
+                <Text style={{ fontWeight: '800', color: colors.primary }}>{filtered.length}</Text> stays match your search
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Hero banner */}
         <View style={styles.heroWrap}>
@@ -97,6 +164,9 @@ export default function Home() {
             </View>
           </ImageBackground>
         </View>
+
+        {/* Ad Carousel */}
+        <AdCarousel />
 
         <FilterChips active={type} onChange={setType} />
 
@@ -122,10 +192,12 @@ export default function Home() {
         )}
 
         {/* Listing grid */}
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>{query || type !== 'all' ? 'Results' : 'All Properties'}</Text>
-          <Text style={styles.count}>{filtered.length} found</Text>
-        </View>
+        {!showAdv && (
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>{query || type !== 'all' ? 'Results' : 'All Properties'}</Text>
+            <Text style={styles.count}>{filtered.length} found</Text>
+          </View>
+        )}
 
         <View style={styles.list}>
           {loading ? (
@@ -143,11 +215,11 @@ export default function Home() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footBrand}>NestaRent</Text>
-          <Text style={styles.footTxt}>Premium accommodation, simplified. Pay $1 via EcoCash to unlock direct owner contacts.</Text>
+          <Text style={styles.footBrand}><Text style={{ color: '#fff' }}>RENT</Text><Text style={{ color: colors.primary }}>ZIMBABWE</Text></Text>
+          <Text style={styles.footTxt}>Premium accommodation, simplified. Get the premium pass to unlock all owner contacts instantly.</Text>
         </View>
       </ScrollView>
-      <BottomNav active="home" />
+      <BottomNav />
     </SafeAreaView>
   );
 }
@@ -160,6 +232,18 @@ const styles = StyleSheet.create({
   avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, marginHorizontal: 20, marginTop: 18, paddingHorizontal: 16, borderRadius: radius.md, gap: 10, height: 52, ...shadow },
   searchInput: { flex: 1, fontSize: 15, color: colors.charcoal },
+  filterBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.seafoam, justifyContent: 'center', alignItems: 'center' },
+  filterBtnActive: { backgroundColor: colors.primary },
+  advPanel: { backgroundColor: colors.white, marginHorizontal: 20, marginTop: 8, borderRadius: radius.md, padding: 16, ...shadow },
+  advLabel: { fontSize: 13, fontWeight: '600', color: colors.charcoal, marginBottom: 8 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  priceInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, fontSize: 14, color: colors.charcoal, backgroundColor: colors.bg },
+  dash: { fontSize: 16, color: colors.lightGray, fontWeight: '600' },
+  densityChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border },
+  densityChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  densityTxt: { fontSize: 13, fontWeight: '700', color: colors.charcoal },
+  advResultRow: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  advResultTxt: { fontSize: 13, color: colors.gray },
   heroWrap: { paddingHorizontal: 20, marginTop: 18 },
   hero: { height: 160, borderRadius: radius.lg },
   heroOverlay: { flex: 1, backgroundColor: 'rgba(10,94,124,0.55)', borderRadius: radius.lg, padding: 20, justifyContent: 'center' },

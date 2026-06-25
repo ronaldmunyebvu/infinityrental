@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { Image } from 'expo-image';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase, uploadPropertyImage } from '@/app/lib/supabase';
+import { supabase, uploadPropertyImage, deletePropertyImages } from '@/app/lib/supabase';
 import { useAuth } from '@/app/context/AuthContext';
 import { useSubscriber } from '@/app/context/SubscriberContext';
 import { colors, radius, shadow } from '@/app/lib/theme';
-import { PROPERTY_TYPES, AMENITY_OPTIONS } from '@/app/lib/types';
+import { PROPERTY_TYPES, AMENITY_OPTIONS, Property } from '@/app/lib/types';
 
-export default function AddPropertyScreen() {
+export default function EditPropertyScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { subscriberIdentifier, subscriberFirstName, subscriberLastName } = useSubscriber();
 
+  const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [propertyType, setPropertyType] = useState<string>(PROPERTY_TYPES[0]);
@@ -25,7 +26,9 @@ export default function AddPropertyScreen() {
   const [bedrooms, setBedrooms] = useState(1);
   const [bathrooms, setBathrooms] = useState(1);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-  const [localImages, setLocalImages] = useState<{ uri: string; name: string; type: string }[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [removedImages, setRemovedImages] = useState<string[]>([]);
+  const [newImages, setNewImages] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
 
@@ -34,29 +37,56 @@ export default function AddPropertyScreen() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactWhatsapp, setContactWhatsapp] = useState('');
 
-  useEffect(() => {
-    const name = [subscriberFirstName, subscriberLastName].filter(Boolean).join(' ');
-    if (name) setContactName(name);
-    if (subscriberIdentifier) {
-      if (/\S+@\S+\.\S+/.test(subscriberIdentifier)) {
-        setContactEmail(subscriberIdentifier);
-      } else {
-        setContactPhone(subscriberIdentifier);
-        setContactWhatsapp(subscriberIdentifier);
+  const totalImages = existingImages.length + newImages.length;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      loadProperty();
+    }, [id])
+  );
+
+  const loadProperty = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('properties').select('*').eq('id', id).single();
+      if (error) throw error;
+      if (!data) {
+        Alert.alert('Not found', 'Property not found.');
+        router.back();
+        return;
       }
+      setTitle(data.title || '');
+      setDescription(data.description || '');
+      setPropertyType(data.property_type || PROPERTY_TYPES[0]);
+      setPrice(String(data.price || ''));
+      setLocation(data.location || '');
+      setBedrooms(data.bedrooms || 1);
+      setBathrooms(data.bathrooms || 1);
+      setSelectedAmenities(data.amenities || []);
+      setExistingImages(data.images || []);
+      setContactName(data.contact_name || '');
+      setContactPhone(data.contact_phone || '');
+      setContactEmail(data.contact_email || '');
+      setContactWhatsapp(data.contact_whatsapp || '');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to load property.');
+      router.back();
+    } finally {
+      setLoading(false);
     }
-  }, [subscriberIdentifier, subscriberFirstName, subscriberLastName]);
+  };
 
   const pickImages = async () => {
-    const remaining = 11 - localImages.length;
+    const remaining = 11 - totalImages;
     if (remaining <= 0) {
-      Alert.alert('Limit reached', 'You can upload a maximum of 11 images.');
+      Alert.alert('Limit reached', 'Maximum 11 images allowed.');
       return;
     }
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant photo library access to select images.');
+      Alert.alert('Permission needed', 'Please grant photo library access.');
       return;
     }
 
@@ -68,42 +98,46 @@ export default function AddPropertyScreen() {
     });
 
     if (!result.canceled) {
-      const newImages = result.assets.map((asset) => ({
+      const images = result.assets.map((asset) => ({
         uri: asset.uri,
         name: asset.uri.split('/').pop() || `image_${Date.now()}.jpg`,
         type: asset.mimeType || 'image/jpeg',
       }));
-      setLocalImages((prev) => [...prev, ...newImages].slice(0, 11));
+      setNewImages((prev) => [...prev, ...images].slice(0, 11 - existingImages.length));
     }
   };
 
   const takePhoto = async () => {
-    if (localImages.length >= 11) {
-      Alert.alert('Limit reached', 'You can upload a maximum of 11 images.');
+    if (totalImages >= 11) {
+      Alert.alert('Limit reached', 'Maximum 11 images allowed.');
       return;
     }
 
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant camera access to take photos.');
+      Alert.alert('Permission needed', 'Please grant camera access.');
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.8,
-    });
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
 
     if (!result.canceled) {
       const asset = result.assets[0];
-      setLocalImages((prev) => [
+      setNewImages((prev) => [
         ...prev,
         { uri: asset.uri, name: asset.uri.split('/').pop() || `photo_${Date.now()}.jpg`, type: asset.mimeType || 'image/jpeg' },
-      ].slice(0, 11));
+      ]);
     }
   };
 
-  const removeImage = (index: number) => {
-    setLocalImages((prev) => prev.filter((_, i) => i !== index));
+  const removeExistingImage = (index: number) => {
+    const removed = existingImages[index];
+    setRemovedImages((prev) => [...prev, removed]);
+    setExistingImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeNewImage = (index: number) => {
+    setNewImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const toggleAmenity = (amenity: string) => {
@@ -113,36 +147,38 @@ export default function AddPropertyScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!user) {
-      Alert.alert('Auth required', 'Please sign in to list a property.');
-      return;
-    }
+    if (!user || !id) return;
     if (!title.trim()) return Alert.alert('Missing', 'Title is required.');
     if (!description.trim()) return Alert.alert('Missing', 'Description is required.');
     if (!price || isNaN(Number(price)) || Number(price) <= 0) return Alert.alert('Missing', 'Enter a valid price.');
     if (!location.trim()) return Alert.alert('Missing', 'Location is required.');
-    if (localImages.length < 3) return Alert.alert('Images required', 'Please add at least 3 images.');
-    if (localImages.length > 11) return Alert.alert('Too many', 'Maximum 11 images allowed.');
+
+    const finalTotal = existingImages.length + newImages.length;
+    if (finalTotal < 3) return Alert.alert('Images required', 'At least 3 images are needed.');
+    if (finalTotal > 11) return Alert.alert('Too many', 'Maximum 11 images allowed.');
 
     setUploading(true);
-    setUploadProgress('Uploading images...');
+    setUploadProgress('Uploading new images...');
 
     try {
+      // Delete removed images from storage
+      if (removedImages.length > 0) {
+        await deletePropertyImages(removedImages);
+      }
+
+      // Upload new images
       const uploadedUrls: string[] = [];
-      for (let i = 0; i < localImages.length; i++) {
-        setUploadProgress(`Uploading image ${i + 1} of ${localImages.length}...`);
-        const url = await uploadPropertyImage(localImages[i]);
+      for (let i = 0; i < newImages.length; i++) {
+        setUploadProgress(`Uploading image ${i + 1} of ${newImages.length}...`);
+        const url = await uploadPropertyImage(newImages[i]);
         if (url) uploadedUrls.push(url);
       }
 
-      if (uploadedUrls.length < 3) {
-        throw new Error('Failed to upload enough images. Please try again.');
-      }
+      const finalImages = [...existingImages, ...uploadedUrls];
 
-      setUploadProgress('Saving property...');
+      setUploadProgress('Saving changes...');
 
-      const { error } = await supabase.from('properties').insert({
-        user_id: user.id,
+      const { error } = await supabase.from('properties').update({
         title: title.trim(),
         description: description.trim(),
         property_type: propertyType,
@@ -151,19 +187,16 @@ export default function AddPropertyScreen() {
         bedrooms,
         bathrooms,
         amenities: selectedAmenities,
-        images: uploadedUrls,
+        images: finalImages,
         contact_name: contactName.trim(),
         contact_phone: contactPhone.trim(),
         contact_email: contactEmail.trim(),
         contact_whatsapp: contactWhatsapp.trim(),
-        views: 0,
-        likes: 0,
-        rating: 0,
-      });
+      }).eq('id', id);
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Your property has been listed!', [
+      Alert.alert('Success', 'Property updated!', [
         { text: 'OK', onPress: () => router.replace('/landlord') },
       ]);
     } catch (err: any) {
@@ -179,7 +212,7 @@ export default function AddPropertyScreen() {
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
         <Ionicons name="arrow-back" size={22} color={colors.charcoal} />
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>Add Property</Text>
+      <Text style={styles.headerTitle}>Edit Property</Text>
       <View style={{ width: 36 }} />
     </View>
   );
@@ -210,6 +243,18 @@ export default function AddPropertyScreen() {
       </TouchableOpacity>
     </View>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {renderHeader()}
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading property...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -299,22 +344,35 @@ export default function AddPropertyScreen() {
           </View>
 
           {renderField('Photos', true)}
-          <Text style={styles.hint}>Add 3 to 11 photos. First photo is the cover.</Text>
+          <Text style={styles.hint}>Minimum 3, maximum 11 photos. First photo is the cover.</Text>
           <View style={styles.imageGrid}>
-            {localImages.map((img, idx) => (
-              <View key={idx} style={styles.imageWrap}>
-                <Image source={{ uri: img.uri }} style={styles.imageThumb} />
-                {idx === 0 && (
+            {existingImages.map((uri, idx) => (
+              <View key={`existing-${idx}`} style={styles.imageWrap}>
+                <Image source={{ uri }} style={styles.imageThumb} />
+                {idx === 0 && newImages.length === 0 && (
                   <View style={styles.coverBadge}>
                     <Text style={styles.coverBadgeText}>Cover</Text>
                   </View>
                 )}
-                <TouchableOpacity style={styles.removeImg} onPress={() => removeImage(idx)}>
+                <TouchableOpacity style={styles.removeImg} onPress={() => removeExistingImage(idx)}>
                   <Ionicons name="close-circle" size={22} color={colors.coral} />
                 </TouchableOpacity>
               </View>
             ))}
-            {localImages.length < 11 && (
+            {newImages.map((img, idx) => (
+              <View key={`new-${idx}`} style={styles.imageWrap}>
+                <Image source={{ uri: img.uri }} style={styles.imageThumb} />
+                {existingImages.length === 0 && idx === 0 && (
+                  <View style={styles.coverBadge}>
+                    <Text style={styles.coverBadgeText}>Cover</Text>
+                  </View>
+                )}
+                <TouchableOpacity style={styles.removeImg} onPress={() => removeNewImage(idx)}>
+                  <Ionicons name="close-circle" size={22} color={colors.coral} />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {totalImages < 11 && (
               <View style={styles.addImageBtns}>
                 <TouchableOpacity style={styles.addImageBtn} onPress={pickImages}>
                   <Ionicons name="images-outline" size={24} color={colors.primary} />
@@ -327,7 +385,7 @@ export default function AddPropertyScreen() {
               </View>
             )}
           </View>
-          <Text style={styles.imageCount}>{localImages.length}/11 images</Text>
+          <Text style={styles.imageCount}>{totalImages}/11 images</Text>
 
           <View style={styles.sectionDivider} />
           <Text style={styles.sectionTitle}>Contact Information</Text>
@@ -381,12 +439,12 @@ export default function AddPropertyScreen() {
             {uploading ? (
               <View style={styles.submitLoading}>
                 <ActivityIndicator color={colors.white} size="small" />
-                <Text style={styles.submitText}>{uploadProgress || 'Uploading...'}</Text>
+                <Text style={styles.submitText}>{uploadProgress || 'Saving...'}</Text>
               </View>
             ) : (
               <View style={styles.submitInner}>
-                <Ionicons name="cloud-upload-outline" size={20} color={colors.white} />
-                <Text style={styles.submitText}>List Property</Text>
+                <Ionicons name="save-outline" size={20} color={colors.white} />
+                <Text style={styles.submitText}>Save Changes</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -405,6 +463,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '700', color: colors.charcoal },
   scroll: { flex: 1 },
   scrollContent: { padding: 20 },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: colors.gray },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 6 },
   label: { fontSize: 14, fontWeight: '600', color: colors.charcoal },
   required: { color: colors.coral, marginLeft: 4, fontSize: 14 },

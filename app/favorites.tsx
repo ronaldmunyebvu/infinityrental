@@ -6,97 +6,144 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/app/lib/supabase';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFavorites } from '@/app/context/FavoritesContext';
-import { colors, radius } from '@/app/lib/theme';
-import { Property } from '@/app/lib/data';
+import { colors, radius, shadow } from '@/app/lib/theme';
+import { Property } from '@/app/lib/types';
 import PropertyCard from '@/app/components/PropertyCard';
 import BottomNav from '@/app/components/BottomNav';
 
-export default function Favorites() {
+export default function FavoritesScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { ids, refresh, count } = useFavorites();
-  const [items, setItems] = useState<Property[]>([]);
+  const { ids, refresh } = useFavorites();
+  const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    await refresh();
-    const idArr = Array.from(ids);
-    if (idArr.length === 0) { setItems([]); setLoading(false); setRefreshing(false); return; }
-    const { data } = await supabase.from('properties').select('*').in('id', idArr);
-    setItems((data as Property[]) || []);
-    setLoading(false);
-    setRefreshing(false);
-  }, [ids, refresh]);
+  const loadFavourites = useCallback(async () => {
+    if (!user) {
+      setProperties([]);
+      setLoading(false);
+      return;
+    }
 
-  useFocusEffect(useCallback(() => { if (user) load(); else setLoading(false); }, [user, load]));
+    try {
+      // Refresh the favorites context first
+      await refresh();
+
+      if (ids.size === 0) {
+        setProperties([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .in('id', Array.from(ids));
+
+      if (error) throw error;
+      setProperties(data || []);
+    } catch (err) {
+      console.error('Error loading favourites:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, ids]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadFavourites();
+    }, [loadFavourites])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadFavourites();
+    setRefreshing(false);
+  }, [loadFavourites]);
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.head}><Text style={styles.title}>Saved</Text></View>
-        <View style={styles.guard}>
-          <Ionicons name="heart-outline" size={56} color={colors.lightGray} />
-          <Text style={styles.guardTxt}>Sign in to save your favorite properties</Text>
-          <TouchableOpacity style={styles.guardBtn} onPress={() => router.push('/auth')} activeOpacity={0.85}>
-            <Text style={styles.guardBtnTxt}>Sign In</Text>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {renderHeader()}
+        <View style={styles.emptyWrap}>
+          <Ionicons name="heart-outline" size={64} color={colors.lightGray} />
+          <Text style={styles.emptyTitle}>Sign in to see your favourites</Text>
+          <Text style={styles.emptySubtitle}>Save properties you love by tapping the heart icon.</Text>
+          <TouchableOpacity style={styles.authBtn} onPress={() => router.push('/auth')} activeOpacity={0.8}>
+            <Text style={styles.authBtnText}>Sign In</Text>
           </TouchableOpacity>
         </View>
-        <BottomNav active="favorites" />
+        <BottomNav />
       </SafeAreaView>
     );
   }
 
-  // keep displayed list in sync if user un-hearts on this screen
-  const visible = items.filter((p) => ids.has(p.id));
-
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.head}>
-        <Text style={styles.title}>Saved Properties</Text>
-        <Text style={styles.sub}>{count} {count === 1 ? 'listing' : 'listings'} saved</Text>
-      </View>
-
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {renderHeader()}
       <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 20, paddingTop: 8 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.primary} />}
       >
         {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-        ) : visible.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}><Ionicons name="heart-outline" size={40} color={colors.primary} /></View>
-            <Text style={styles.emptyTitle}>No saved properties yet</Text>
-            <Text style={styles.emptyTxt}>Tap the heart icon on any listing to save it here for later.</Text>
-            <TouchableOpacity style={styles.browseBtn} onPress={() => router.replace('/')} activeOpacity={0.85}>
-              <Ionicons name="compass-outline" size={17} color="#fff" />
-              <Text style={styles.browseTxt}>Explore Listings</Text>
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : properties.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Ionicons name="heart-outline" size={64} color={colors.lightGray} />
+            <Text style={styles.emptyTitle}>No favourites yet</Text>
+            <Text style={styles.emptySubtitle}>Tap the heart icon on any property to save it here.</Text>
+            <TouchableOpacity style={styles.exploreBtn} onPress={() => router.replace('/')} activeOpacity={0.8}>
+              <Ionicons name="compass-outline" size={18} color={colors.primary} />
+              <Text style={styles.exploreBtnText}>Explore Properties</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          visible.map((p) => <PropertyCard key={p.id} item={p} />)
+          <>
+            <Text style={styles.countText}>{properties.length} saved {properties.length === 1 ? 'property' : 'properties'}</Text>
+            {properties.map((property) => (
+              <PropertyCard key={property.id} item={property} />
+            ))}
+          </>
         )}
+        <View style={{ height: 20 }} />
       </ScrollView>
-
-      <BottomNav active="favorites" />
+      <BottomNav />
     </SafeAreaView>
   );
+
+  function renderHeader() {
+    return (
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Saved Properties</Text>
+        <View style={styles.headerBadge}>
+          <Ionicons name="heart" size={14} color={colors.coral} />
+          <Text style={styles.headerBadgeText}>{properties.length}</Text>
+        </View>
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  head: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  title: { fontSize: 28, fontWeight: '800', color: colors.charcoal },
-  sub: { fontSize: 14, color: colors.gray, marginTop: 2 },
-  guard: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 30 },
-  guardTxt: { fontSize: 15, color: colors.gray, textAlign: 'center' },
-  guardBtn: { backgroundColor: colors.primary, paddingHorizontal: 34, paddingVertical: 14, borderRadius: radius.pill },
-  guardBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.seafoam, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.charcoal },
-  emptyTxt: { fontSize: 14, color: colors.gray, textAlign: 'center', lineHeight: 21, paddingHorizontal: 30 },
-  browseBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.coral, paddingHorizontal: 22, paddingVertical: 13, borderRadius: radius.pill, marginTop: 10 },
-  browseTxt: { color: '#fff', fontWeight: '700', fontSize: 14.5 },
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: colors.charcoal },
+  headerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.seafoam, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
+  headerBadgeText: { fontSize: 13, fontWeight: '700', color: colors.charcoal },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 20 },
+  loadingWrap: { paddingVertical: 60, alignItems: 'center' },
+  countText: { fontSize: 13, color: colors.gray, marginBottom: 12, fontWeight: '500' },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingVertical: 60, gap: 10 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.charcoal, marginTop: 12 },
+  emptySubtitle: { fontSize: 14, color: colors.gray, textAlign: 'center', lineHeight: 20 },
+  authBtn: { marginTop: 16, backgroundColor: colors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: radius.sm },
+  authBtnText: { color: colors.white, fontSize: 15, fontWeight: '700' },
+  exploreBtn: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.seafoam, paddingHorizontal: 24, paddingVertical: 12, borderRadius: radius.sm },
+  exploreBtnText: { color: colors.primary, fontSize: 15, fontWeight: '700' },
 });

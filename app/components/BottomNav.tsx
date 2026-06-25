@@ -1,24 +1,33 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { colors, radius } from '@/app/lib/theme';
-import { useAuth } from '@/app/context/AuthContext';
+import { useRouter, usePathname } from 'expo-router';
+import { colors, shadow, radius } from '@/app/lib/theme';
 import { useFavorites } from '@/app/context/FavoritesContext';
+import { useAuth } from '@/app/context/AuthContext';
 
-type Tab = 'home' | 'favorites' | 'portal';
+type Tab = 'home' | 'favorites' | 'portal' | 'more';
 
 const TABS: { key: Tab; label: string; icon: any; route: string }[] = [
   { key: 'home', label: 'Explore', icon: 'compass-outline', route: '/' },
   { key: 'favorites', label: 'Saved', icon: 'heart-outline', route: '/favorites' },
   { key: 'portal', label: 'Portal', icon: 'business-outline', route: '/landlord' },
+  { key: 'more', label: 'More', icon: 'menu-outline', route: '/more' },
 ];
 
-export default function BottomNav({ active }: { active: Tab }) {
+export default function BottomNav() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuth();
   const { count } = useFavorites();
+
+  const active: Tab = pathname === '/favorites'
+    ? 'favorites'
+    : pathname === '/landlord'
+    ? 'portal'
+    : pathname === '/more'
+    ? 'more'
+    : 'home';
 
   const go = (t: typeof TABS[number]) => {
     if ((t.key === 'favorites' || t.key === 'portal') && !user) { router.push('/auth'); return; }
@@ -27,7 +36,7 @@ export default function BottomNav({ active }: { active: Tab }) {
   };
 
   return (
-    <SafeAreaView edges={['bottom']} style={styles.wrap}>
+    <View style={styles.wrap}>
       <View style={styles.bar}>
         {TABS.map((t) => {
           const on = active === t.key;
@@ -44,12 +53,12 @@ export default function BottomNav({ active }: { active: Tab }) {
           );
         })}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.border },
+  wrap: { backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.border },
   bar: { flexDirection: 'row', paddingTop: 8, paddingHorizontal: 10 },
   tab: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 4 },
   lbl: { fontSize: 11, color: colors.lightGray, fontWeight: '600' },

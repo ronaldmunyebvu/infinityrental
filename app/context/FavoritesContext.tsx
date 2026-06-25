@@ -18,7 +18,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!user) { setIds(new Set()); return; }
-    const { data } = await supabase.from('favorites').select('property_id').eq('user_id', user.id);
+    const { data } = await supabase.from('favourites').select('property_id').eq('user_id', user.id);
     setIds(new Set((data || []).map((d: any) => d.property_id)));
   }, [user]);
 
@@ -27,18 +27,17 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const isFav = useCallback((id: string) => ids.has(id), [ids]);
 
   const toggleFav = useCallback(async (id: string) => {
-    if (!user) return false; // signal caller that auth is required
+    if (!user) return false;
     const has = ids.has(id);
-    // optimistic update
     setIds((prev) => {
       const next = new Set(prev);
       has ? next.delete(id) : next.add(id);
       return next;
     });
     if (has) {
-      await supabase.from('favorites').delete().eq('user_id', user.id).eq('property_id', id);
+      await supabase.from('favourites').delete().eq('user_id', user.id).eq('property_id', id);
     } else {
-      await supabase.from('favorites').upsert({ user_id: user.id, property_id: id }, { onConflict: 'user_id,property_id' });
+      await supabase.from('favourites').upsert({ user_id: user.id, property_id: id }, { onConflict: 'user_id,property_id' });
     }
     return true;
   }, [ids, user]);

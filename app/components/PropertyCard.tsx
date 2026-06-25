@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, cardShadow, radius } from '@/app/lib/theme';
-import { Property } from '@/app/lib/data';
+import { Property } from '@/app/lib/types';
 import { useFavorites } from '@/app/context/FavoritesContext';
 
 export default function PropertyCard({ item }: { item: Property }) {
@@ -36,10 +36,10 @@ export default function PropertyCard({ item }: { item: Property }) {
       >
         <View style={styles.imgWrap}>
           <Image source={{ uri: item.images?.[0] }} style={styles.img} />
-          {item.featured && (
+          {item.property_type && (
             <View style={styles.badge}>
-              <Ionicons name="star" size={11} color="#fff" />
-              <Text style={styles.badgeTxt}>Featured</Text>
+              <Ionicons name="home" size={11} color="#fff" />
+              <Text style={styles.badgeTxt}>{item.property_type}</Text>
             </View>
           )}
           <TouchableOpacity style={styles.heart} onPress={tapHeart} activeOpacity={0.8}>
@@ -59,9 +59,26 @@ export default function PropertyCard({ item }: { item: Property }) {
             <Text style={styles.loc} numberOfLines={1}>{item.location}</Text>
           </View>
           <View style={styles.specs}>
-            <View style={styles.spec}><Ionicons name="bed-outline" size={14} color={colors.primary} /><Text style={styles.specTxt}>{item.bedrooms} Bed</Text></View>
-            <View style={styles.spec}><Ionicons name="water-outline" size={14} color={colors.primary} /><Text style={styles.specTxt}>{item.bathrooms} Bath</Text></View>
-            <View style={styles.spec}><Ionicons name="resize-outline" size={14} color={colors.primary} /><Text style={styles.specTxt}>{item.area}m²</Text></View>
+            <View style={styles.spec}>
+              <Ionicons name="bed-outline" size={14} color={colors.primary} />
+              <Text style={styles.specTxt}>{item.bedrooms} Bed</Text>
+            </View>
+            <View style={styles.spec}>
+              <Ionicons name="water-outline" size={14} color={colors.primary} />
+              <Text style={styles.specTxt}>{item.bathrooms} Bath</Text>
+            </View>
+            {item.views != null && (
+              <View style={styles.spec}>
+                <Ionicons name="eye-outline" size={14} color={colors.primary} />
+                <Text style={styles.specTxt}>{item.views}</Text>
+              </View>
+            )}
+            {item.likes != null && (
+              <View style={styles.spec}>
+                <Ionicons name="heart-outline" size={14} color={colors.primary} />
+                <Text style={styles.specTxt}>{item.likes}</Text>
+              </View>
+            )}
           </View>
         </View>
       </Pressable>

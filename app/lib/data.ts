@@ -1,8 +1,12 @@
 export const PROPERTY_TYPES = [
   { key: 'all', label: 'All', icon: 'grid-outline' },
-  { key: 'house', label: 'House', icon: 'home-outline' },
-  { key: 'studio', label: 'Student', icon: 'bed-outline' },
-  { key: 'apartment', label: 'Apartment', icon: 'business-outline' },
+  { key: 'Apartment', label: 'Apartment', icon: 'business-outline' },
+  { key: 'House', label: 'House', icon: 'home-outline' },
+  { key: 'Office Space', label: 'Office', icon: 'briefcase-outline' },
+  { key: 'Shop / Retail', label: 'Shop', icon: 'storefront-outline' },
+  { key: 'Warehouse', label: 'Warehouse', icon: 'cube-outline' },
+  { key: 'Student Accommodation', label: 'Student', icon: 'school-outline' },
+  { key: 'Short letting', label: 'Short Let', icon: 'time-outline' },
 ];
 
 export const AMENITIES = [
@@ -12,31 +16,15 @@ export const AMENITIES = [
   { key: 'Pool', icon: 'water-outline' },
   { key: 'Garden', icon: 'leaf-outline' },
   { key: 'Security', icon: 'shield-checkmark-outline' },
+  { key: 'Borehole', icon: 'water-outline' },
+  { key: 'Solar', icon: 'sunny-outline' },
+  { key: 'Garage', icon: 'car-outline' },
+  { key: 'Backup Power', icon: 'flash-outline' },
+  { key: 'Pet Friendly', icon: 'paw-outline' },
+  { key: 'Water Tank', icon: 'water-outline' },
 ];
 
 export function amenityIcon(key: string): any {
   const found = AMENITIES.find((a) => a.key === key);
   return found ? found.icon : 'checkmark-circle-outline';
 }
-
-export type Property = {
-  id: string;
-  owner_id?: string;
-  title: string;
-  description?: string;
-  type: string;
-  price: number;
-  location?: string;
-  bedrooms: number;
-  bathrooms: number;
-  area?: number;
-  images: string[];
-  amenities: string[];
-  owner_name?: string;
-  owner_phone?: string;
-  owner_email?: string;
-  owner_whatsapp?: string;
-  latitude?: number;
-  longitude?: number;
-  featured?: boolean;
-};
