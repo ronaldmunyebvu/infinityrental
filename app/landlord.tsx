@@ -50,18 +50,10 @@ export default function LandlordScreen() {
     }, [fetchProperties])
   );
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          await logoutSubscriber();
-        },
-      },
-    ]);
+  const handleLogout = async () => {
+    await signOut();
+    await logoutSubscriber();
+    router.replace('/');
   };
 
   const handleDelete = (prop: Property) => {

@@ -5,14 +5,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, cardShadow, radius } from '@/app/lib/theme';
 import { Property } from '@/app/lib/types';
+import { useAuth } from '@/app/context/AuthContext';
+import { useSubscriber } from '@/app/context/SubscriberContext';
 import { useFavorites } from '@/app/context/FavoritesContext';
+import { formatRelativeTime } from '@/app/lib/utils';
 
 export default function PropertyCard({ item }: { item: Property }) {
   const router = useRouter();
+  const { user } = useAuth();
+  const { subscriberIdentifier, hasSubscription } = useSubscriber();
   const { isFav, toggleFav } = useFavorites();
   const fav = isFav(item.id);
   const scale = useRef(new Animated.Value(1)).current;
   const heart = useRef(new Animated.Value(1)).current;
+  const relativeTime = formatRelativeTime(item.created_at);
+  const activeId = user?.email || subscriberIdentifier || user?.phone;
+  const isOwner = Boolean(activeId && item.email_number && item.email_number === activeId);
+  const unlocked = hasSubscription || isOwner;
 
   const onIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();
   const onOut = () => Animated.spring(scale, { toValue: 1, friction: 4, tension: 300, useNativeDriver: true }).start();
@@ -51,6 +60,18 @@ export default function PropertyCard({ item }: { item: Property }) {
             <Text style={styles.priceTxt}>${item.price}</Text>
             <Text style={styles.priceSub}>/mo</Text>
           </View>
+          {relativeTime && (
+            <View style={styles.timeBadge}>
+              <Ionicons name="time-outline" size={10} color="#fff" />
+              <Text style={styles.timeTxt}>{relativeTime}</Text>
+            </View>
+          )}
+          {item.rating != null && (
+            <View style={styles.ratingBadge}>
+              <Ionicons name="star" size={11} color="#fff" />
+              <Text style={styles.ratingTxt}>{Number(item.rating).toFixed(1)}</Text>
+            </View>
+          )}
         </View>
         <View style={styles.body}>
           <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
@@ -80,6 +101,17 @@ export default function PropertyCard({ item }: { item: Property }) {
               </View>
             )}
           </View>
+          {unlocked ? (
+            <View style={styles.contactRow}>
+              <Ionicons name="call-outline" size={13} color={colors.gray} />
+              <Text style={styles.contactTxt} numberOfLines={1}>{item.contact_phone}</Text>
+            </View>
+          ) : item.contact_phone && (
+            <View style={styles.contactRow}>
+              <Ionicons name="lock-closed-outline" size={13} color={colors.lightGray} />
+              <Text style={[styles.contactTxt, { color: colors.lightGray }]}>Contact locked</Text>
+            </View>
+          )}
         </View>
       </Pressable>
     </Animated.View>
@@ -96,6 +128,10 @@ const styles = StyleSheet.create({
   priceTag: { position: 'absolute', bottom: 12, left: 12, backgroundColor: 'rgba(10,126,164,0.95)', flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.sm },
   priceTxt: { color: '#fff', fontSize: 17, fontWeight: '800' },
   priceSub: { color: '#e0f0f5', fontSize: 11, fontWeight: '600', marginBottom: 2, marginLeft: 1 },
+  timeBadge: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(45,55,72,0.75)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, gap: 3 },
+  timeTxt: { color: '#fff', fontSize: 10, fontWeight: '600' },
+  ratingBadge: { position: 'absolute', top: 12, right: 52, backgroundColor: 'rgba(255,107,53,0.9)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, gap: 3 },
+  ratingTxt: { color: '#fff', fontSize: 10, fontWeight: '700' },
   body: { padding: 14 },
   title: { fontSize: 16, fontWeight: '700', color: colors.charcoal },
   row: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 3 },
@@ -103,4 +139,6 @@ const styles = StyleSheet.create({
   specs: { flexDirection: 'row', gap: 16, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   spec: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   specTxt: { fontSize: 12.5, color: colors.charcoal, fontWeight: '600' },
+  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  contactTxt: { fontSize: 12, color: colors.gray },
 });

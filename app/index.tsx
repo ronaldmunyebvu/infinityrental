@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl, Keyboard } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, RefreshControl } from 'react-native';
 import { ImageBackground } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,8 +12,51 @@ import PropertyCard from '@/app/components/PropertyCard';
 import FilterChips from '@/app/components/FilterChips';
 import BottomNav from '@/app/components/BottomNav';
 import AdCarousel from '@/app/components/AdCarousel';
+import { SkeletonGrid } from '@/app/components/SkeletonCard';
 
 const HERO = 'https://d64gsuwffb70l.cloudfront.net/6a3b8ba1dd44bfd49bd2cbd5_1782287526231_fe633117.png';
+
+const PHRASES = [
+  'Find your next home',
+  'Discover premium stays',
+  'Rentals made easy',
+];
+
+function TypewriterHeadline() {
+  const [index, setIndex] = useState(0);
+  const [text, setText] = useState('');
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const full = PHRASES[index];
+    let i = 0;
+    let timeout: ReturnType<typeof setTimeout>;
+
+    const type = () => {
+      if (i <= full.length) {
+        setText(full.slice(0, i));
+        i++;
+        timeout = setTimeout(type, 50);
+      } else {
+        timeout = setTimeout(() => {
+          Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+            setIndex((prev) => (prev + 1) % PHRASES.length);
+            setText('');
+            fadeAnim.setValue(1);
+          });
+        }, 2500);
+      }
+    };
+    type();
+    return () => clearTimeout(timeout);
+  }, [index, fadeAnim]);
+
+  return (
+    <Animated.Text style={[styles.heroTitle, { opacity: fadeAnim }]}>
+      {text}<Text style={{ color: '#7CC4FF' }}>|</Text>
+    </Animated.Text>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -62,13 +105,22 @@ export default function Home() {
             <Text style={styles.hello}>Find your</Text>
             <Text style={styles.headline}>Perfect Home</Text>
           </View>
-          <TouchableOpacity
-            style={styles.avatar}
-            activeOpacity={0.8}
-            onPress={() => router.push(user ? '/landlord' : '/auth')}
-          >
-            <Ionicons name={user ? 'person' : 'log-in-outline'} size={20} color="#fff" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={styles.headerBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push('/more')}
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.avatar}
+              activeOpacity={0.8}
+              onPress={() => router.push(user ? '/landlord' : '/auth')}
+            >
+              <Ionicons name={user ? 'person' : 'log-in-outline'} size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search */}
@@ -120,7 +172,7 @@ export default function Home() {
               />
             </View>
             <Text style={[styles.advLabel, { marginTop: 12 }]}>Area density</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ gap: 8 }} contentContainerStyle={{ gap: 8 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               <TouchableOpacity
                 style={[styles.densityChip, !density && styles.densityChipActive]}
                 onPress={() => setDensity('')}
@@ -152,15 +204,16 @@ export default function Home() {
           <ImageBackground source={{ uri: HERO }} style={styles.hero} imageStyle={{ borderRadius: radius.lg }}>
             <View style={styles.heroOverlay}>
               <Text style={styles.heroBadge}>PREMIUM RENTALS</Text>
-              <Text style={styles.heroTitle}>List or Rent in Minutes</Text>
-              <TouchableOpacity
-                style={styles.heroBtn}
-                activeOpacity={0.85}
-                onPress={() => router.push(user ? '/landlord' : '/auth')}
-              >
-                <Text style={styles.heroBtnTxt}>Become a Landlord</Text>
-                <Ionicons name="arrow-forward" size={15} color={colors.primary} />
-              </TouchableOpacity>
+              <TypewriterHeadline />
+              <Text style={styles.heroSub}>Browse listings, unlock contacts, connect instantly</Text>
+              <View style={styles.heroFeatureRow}>
+                {['Smart Search', '$5 Pass', 'Secure Pay'].map((f) => (
+                  <View key={f} style={styles.heroFeature}>
+                    <Ionicons name="checkmark-circle" size={12} color="#7CC4FF" />
+                    <Text style={styles.heroFeatureTxt}>{f}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           </ImageBackground>
         </View>
@@ -182,6 +235,12 @@ export default function Home() {
                 <TouchableOpacity key={p.id} activeOpacity={0.9} style={styles.fcard} onPress={() => router.push(`/property/${p.id}`)}>
                   <ImageBackground source={{ uri: p.images?.[0] }} style={styles.fimg} imageStyle={{ borderRadius: radius.md }}>
                     <View style={styles.fprice}><Text style={styles.fpriceTxt}>${p.price}/mo</Text></View>
+                    {p.rating != null && (
+                      <View style={styles.frating}>
+                        <Ionicons name="star" size={10} color="#fff" />
+                        <Text style={styles.fratingTxt}>{Number(p.rating).toFixed(1)}</Text>
+                      </View>
+                    )}
                   </ImageBackground>
                   <Text style={styles.ftitle} numberOfLines={1}>{p.title}</Text>
                   <Text style={styles.floc} numberOfLines={1}>{p.location}</Text>
@@ -201,7 +260,7 @@ export default function Home() {
 
         <View style={styles.list}>
           {loading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+            <SkeletonGrid count={4} />
           ) : filtered.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="home-outline" size={48} color={colors.lightGray} />
@@ -214,9 +273,20 @@ export default function Home() {
           )}
         </View>
 
+        {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footBrand}><Text style={{ color: '#fff' }}>RENT</Text><Text style={{ color: colors.primary }}>ZIMBABWE</Text></Text>
+          <View style={styles.footerBrandRow}>
+            <View style={styles.footerLogo}><Ionicons name="home" size={20} color="#fff" /></View>
+            <Text style={styles.footBrand}><Text style={{ color: '#fff' }}>RENT</Text><Text style={{ color: colors.primary }}>ZIMBABWE</Text></Text>
+          </View>
           <Text style={styles.footTxt}>Premium accommodation, simplified. Get the premium pass to unlock all owner contacts instantly.</Text>
+          <View style={styles.footerLinks}>
+            <TouchableOpacity onPress={() => router.push('/about')}><Text style={styles.footerLink}>About</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/contact')}><Text style={styles.footerLink}>Contact</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/privacy')}><Text style={styles.footerLink}>Privacy</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/terms')}><Text style={styles.footerLink}>Terms</Text></TouchableOpacity>
+          </View>
+          <Text style={styles.footerCopy}>© {new Date().getFullYear()} RENTZIMBABWE. Payments secured via EcoCash.</Text>
         </View>
       </ScrollView>
       <BottomNav />
@@ -230,6 +300,7 @@ const styles = StyleSheet.create({
   hello: { fontSize: 15, color: colors.gray, fontWeight: '500' },
   headline: { fontSize: 28, fontWeight: '800', color: colors.charcoal, marginTop: -2 },
   avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
+  headerBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.seafoam, alignItems: 'center', justifyContent: 'center', ...shadow },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, marginHorizontal: 20, marginTop: 18, paddingHorizontal: 16, borderRadius: radius.md, gap: 10, height: 52, ...shadow },
   searchInput: { flex: 1, fontSize: 15, color: colors.charcoal },
   filterBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.seafoam, justifyContent: 'center', alignItems: 'center' },
@@ -245,25 +316,34 @@ const styles = StyleSheet.create({
   advResultRow: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   advResultTxt: { fontSize: 13, color: colors.gray },
   heroWrap: { paddingHorizontal: 20, marginTop: 18 },
-  hero: { height: 160, borderRadius: radius.lg },
-  heroOverlay: { flex: 1, backgroundColor: 'rgba(10,94,124,0.55)', borderRadius: radius.lg, padding: 20, justifyContent: 'center' },
+  hero: { height: 200, borderRadius: radius.lg },
+  heroOverlay: { flex: 1, backgroundColor: 'rgba(10,94,124,0.6)', borderRadius: radius.lg, padding: 20, justifyContent: 'center' },
   heroBadge: { color: '#cdeaf3', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  heroTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 14, width: '70%' },
-  heroBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.pill, gap: 6 },
-  heroBtnTxt: { color: colors.primary, fontWeight: '700', fontSize: 13.5 },
+  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 4, width: '90%' },
+  heroSub: { color: '#e0f0f5', fontSize: 13, marginTop: 4 },
+  heroFeatureRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  heroFeature: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  heroFeatureTxt: { color: '#cdeaf3', fontSize: 11, fontWeight: '600' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 24, marginBottom: 14, gap: 6 },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: colors.charcoal },
   count: { fontSize: 13, color: colors.gray, fontWeight: '600' },
   fcard: { width: 200 },
-  fimg: { height: 130, justifyContent: 'flex-end' },
+  fimg: { height: 130, justifyContent: 'space-between' },
   fprice: { alignSelf: 'flex-start', margin: 10, backgroundColor: colors.coral, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   fpriceTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  frating: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 3, borderRadius: radius.pill, gap: 2 },
+  fratingTxt: { color: '#fff', fontSize: 10, fontWeight: '700' },
   ftitle: { fontSize: 14.5, fontWeight: '700', color: colors.charcoal, marginTop: 8 },
   floc: { fontSize: 12, color: colors.gray, marginTop: 2 },
   list: { paddingHorizontal: 20 },
   empty: { alignItems: 'center', paddingVertical: 50, gap: 12 },
   emptyTxt: { color: colors.gray, fontSize: 15 },
   footer: { backgroundColor: colors.primaryDark, margin: 20, marginTop: 10, borderRadius: radius.lg, padding: 24 },
+  footerBrandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  footerLogo: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   footBrand: { color: '#fff', fontSize: 20, fontWeight: '800' },
   footTxt: { color: '#cdeaf3', fontSize: 13, lineHeight: 20, marginTop: 8 },
+  footerLinks: { flexDirection: 'row', gap: 16, marginTop: 14 },
+  footerLink: { color: '#7CC4FF', fontSize: 13, fontWeight: '600' },
+  footerCopy: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 12 },
 });

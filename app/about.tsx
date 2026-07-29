@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { colors, radius, shadow } from '@/app/lib/theme';
 
 const VALUES = [
-  { icon: 'target-outline' as const, title: 'Our Mission', desc: 'To eliminate the stress, high agent fees, and uncertainty of finding a home by building a tech-driven marketplace that empowers everyone.' },
+  { icon: 'flag-outline' as const, title: 'Our Mission', desc: 'To eliminate the stress, high agent fees, and uncertainty of finding a home by building a tech-driven marketplace that empowers everyone.' },
   { icon: 'shield-checkmark-outline' as const, title: 'Trust & Security', desc: 'We integrate secure EcoCash payments so you can search and transact with total peace of mind. Say goodbye to property scams.' },
   { icon: 'people-outline' as const, title: 'For Everyone', desc: 'Whether you are listing an empty room, a full house, or looking for your next dream apartment, we are built for you.' },
   { icon: 'heart-outline' as const, title: 'Community First', desc: 'We listen to our users. Our features, from premium passes to intuitive filters, make finding accommodation accessible to all.' },

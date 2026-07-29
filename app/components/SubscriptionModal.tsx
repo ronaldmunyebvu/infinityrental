@@ -38,7 +38,10 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Props
   const pay = async () => {
     setError('');
 
-    const cleanPhone = phone.replace(/\s+/g, '');
+    let cleanPhone = phone.replace(/[\s\-\+]+/g, '');
+    if (cleanPhone.startsWith('263')) {
+      cleanPhone = '0' + cleanPhone.slice(3);
+    }
     if (!cleanPhone.startsWith('077') && !cleanPhone.startsWith('078')) {
       setError('Please enter a valid EcoCash number starting with 077 or 078.');
       return;
@@ -56,7 +59,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Props
         body: JSON.stringify({
           description: '1 Month Premium Access',
           mobile: cleanPhone,
-          amount: 0.10,
+          amount: 5,
           authemail: 'infinitymetersolutions@gmail.com',
           subscriber_identifier: subscriberIdentifier || user?.email || user?.phone,
         }),
@@ -123,8 +126,8 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Props
               <Text style={styles.headerLabel}>EcoCash Secure Payment</Text>
             </View>
             <View style={styles.amountDisplay}>
-              <Text style={styles.amountBig}>$0</Text>
-              <Text style={styles.amountSmall}>.10 USD</Text>
+              <Text style={styles.amountBig}>$5</Text>
+              <Text style={styles.amountSmall}>.00 USD</Text>
             </View>
             <Text style={styles.amountSub}>1 Month Premium Access</Text>
           </View>
@@ -133,7 +136,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Props
             {stage === 'form' && (
               <>
                 <Text style={styles.desc}>
-                  Pay <Text style={{ color: colors.primary, fontWeight: '700' }}>$0.10</Text> via EcoCash to unlock all landlord contact details for a full month.
+                  Pay <Text style={{ color: colors.primary, fontWeight: '700' }}>$5.00</Text> via EcoCash to unlock all landlord contact details for a full month.
                 </Text>
 
                 <Text style={styles.label}>EcoCash Number</Text>
@@ -144,7 +147,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Props
                     placeholderTextColor={colors.lightGray}
                     keyboardType="phone-pad"
                     value={phone}
-                    onChangeText={setPhone}
+                    onChangeText={(v) => { setPhone(v); if (error) setError(''); }}
                   />
                 </View>
 
@@ -152,7 +155,7 @@ export default function SubscriptionModal({ visible, onClose, onSuccess }: Props
 
                 <TouchableOpacity style={styles.payBtn} onPress={pay} activeOpacity={0.85}>
                   <Ionicons name="phone-portrait-outline" size={18} color="#fff" />
-                  <Text style={styles.payTxt}>Pay $0.10 via EcoCash</Text>
+                  <Text style={styles.payTxt}>Pay $5 via EcoCash</Text>
                 </TouchableOpacity>
 
                 <View style={styles.secureRow}>

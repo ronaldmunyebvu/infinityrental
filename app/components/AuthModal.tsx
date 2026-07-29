@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Animated,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,11 +31,10 @@ type Props = {
 };
 
 export default function AuthModal({ visible, onClose, initialMode = 'signin', onSuccess }: Props) {
-  const { signIn, signUp, sendAuthOtp, verifyAuthOtpAndReset, sendOwnerRegOtp, verifyOwnerRegOtp } = useAuth();
-  const { loginSubscriber, registerSubscriber, sendSubscriberOtp, verifySubscriberOtpAndReset, sendSubscriberRegOtp, verifySubscriberRegOtp } = useSubscriber();
+  const { signIn, signUp, verifyAuthOtpAndReset } = useAuth();
+  const { loginSubscriber, registerSubscriber, sendSubscriberOtp, verifySubscriberRegOtp, verifySubscriberOtpAndReset } = useSubscriber();
 
   const [mode, setMode] = useState<ModalMode>(initialMode);
-  const [role, setRole] = useState<'seeker' | 'owner'>('seeker');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,7 +54,6 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
   // Forgot password flow
   const [forgotStep, setForgotStep] = useState<ForgotStep>(1);
   const [forgotIdentifier, setForgotIdentifier] = useState('');
-  const [forgotRole, setForgotRole] = useState<'seeker' | 'owner'>('seeker');
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [devOtp, setDevOtp] = useState<string | undefined>();
   const [newPassword, setNewPassword] = useState('');
@@ -157,9 +155,7 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
 
     // Phone sign-up: send OTP first
     if (mode === 'signup' && isPhone(identifier)) {
-      const res = role === 'owner'
-        ? await sendOwnerRegOtp(identifier)
-        : await sendSubscriberRegOtp(identifier);
+      const res = await sendSubscriberOtp(identifier);
       setLoading(false);
       if (res.error) { setError(res.error); return; }
       setSignupDevOtp(res.otp);
@@ -168,12 +164,11 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
       return;
     }
 
-    // Email sign-up / all sign-ins
-    const isEmailId = isEmail(identifier);
-    if (role === 'owner' || isEmailId) {
+    // Email sign-up / sign-in
+    if (isEmail(identifier)) {
       const res = mode === 'signin'
         ? await signIn(identifier, password)
-        : await signUp(identifier, password, role, signupFirstName.trim(), signupLastName.trim());
+        : await signUp(identifier, password, 'owner', signupFirstName.trim(), signupLastName.trim());
       setLoading(false);
       if (res.error) { setError(res.error); return; }
       if (res.needsEmailVerification) {
@@ -183,13 +178,14 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
       onClose();
       if (onSuccess) onSuccess(res.role);
     } else {
+      // Phone sign-in
       const res = mode === 'signin'
         ? await loginSubscriber(identifier, password)
         : await registerSubscriber(identifier, password, signupFirstName.trim(), signupLastName.trim());
       setLoading(false);
       if (res.error) { setError(res.error); return; }
       onClose();
-      if (onSuccess) onSuccess('seeker');
+      if (onSuccess) onSuccess('owner');
     }
   };
 
@@ -200,24 +196,14 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
     if (otpVal.length < OTP_LENGTH) { setError('Please enter all 6 digits.'); return; }
 
     setLoading(true);
-    const verifyRes = role === 'owner'
-      ? await verifyOwnerRegOtp(identifier, otpVal)
-      : await verifySubscriberRegOtp(identifier, otpVal);
+    const verifyRes = await verifySubscriberRegOtp(identifier, otpVal);
     if (verifyRes.error) { setLoading(false); setError(verifyRes.error); return; }
 
-    if (role === 'owner') {
-      const res = await signUp(identifier, password, role, signupFirstName.trim(), signupLastName.trim());
-      setLoading(false);
-      if (res.error) { setError(res.error); return; }
-      onClose();
-      if (onSuccess) onSuccess(res.role);
-    } else {
-      const res = await registerSubscriber(identifier, password, signupFirstName.trim(), signupLastName.trim());
-      setLoading(false);
-      if (res.error) { setError(res.error); return; }
-      onClose();
-      if (onSuccess) onSuccess('seeker');
-    }
+    const res = await registerSubscriber(identifier, password, signupFirstName.trim(), signupLastName.trim());
+    setLoading(false);
+    if (res.error) { setError(res.error); return; }
+    onClose();
+    if (onSuccess) onSuccess('owner');
   };
 
   // ─── FORGOT PASSWORD STEP 1: Send OTP ──────────────────────────────────
@@ -227,10 +213,8 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
     if (idError) { setError(idError); return; }
 
     setLoading(true);
-    const isEmailId = isEmail(forgotIdentifier);
 
-    if (isEmailId) {
-      // For email, use Supabase's built-in reset (sends magic link)
+    if (isEmail(forgotIdentifier)) {
       const { error } = await (await import('@/app/lib/supabase')).supabase.auth.resetPasswordForEmail(forgotIdentifier);
       setLoading(false);
       if (error) { setError(error.message); return; }
@@ -238,9 +222,7 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
       return;
     }
 
-    const res = (forgotRole === 'owner')
-      ? await sendAuthOtp(forgotIdentifier)
-      : await sendSubscriberOtp(forgotIdentifier);
+    const res = await sendSubscriberOtp(forgotIdentifier);
     setLoading(false);
     if (res.error) { setError(res.error); return; }
     setDevOtp(res.otp);
@@ -262,12 +244,15 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
     if (newPassword !== confirmNewPassword) { setError('Passwords do not match.'); return; }
 
     setLoading(true);
-    const isEmailId = isEmail(forgotIdentifier);
-    const res = (forgotRole === 'owner' || isEmailId)
-      ? await verifyAuthOtpAndReset(forgotIdentifier, otpDigits.join(''), newPassword)
-      : await verifySubscriberOtpAndReset(forgotIdentifier, otpDigits.join(''), newPassword);
-    setLoading(false);
-    if (res.error) { setError(res.error); return; }
+    if (isEmail(forgotIdentifier)) {
+      const res = await verifyAuthOtpAndReset(forgotIdentifier, otpDigits.join(''), newPassword);
+      setLoading(false);
+      if (res.error) { setError(res.error); return; }
+    } else {
+      const res = await verifySubscriberOtpAndReset(forgotIdentifier, otpDigits.join(''), newPassword);
+      setLoading(false);
+      if (res.error) { setError(res.error); return; }
+    }
     setForgotSuccess(true);
   };
 
@@ -322,8 +307,6 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
     </View>
   );
 
-  const forgotDelivery = isEmail(forgotIdentifier) ? 'email' : 'SMS';
-
   // ─── RENDER ────────────────────────────────────────────────────────────
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -360,22 +343,6 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
                     </View>
                   ) : (
                     <>
-                      {/* Role toggle */}
-                      <Text style={styles.label}>What brings you here?</Text>
-                      <View style={styles.roleRow}>
-                        {([['seeker', 'Property Seeker', 'search'], ['owner', 'Property Owner', 'business']] as const).map(([k, l, icon]) => (
-                          <TouchableOpacity
-                            key={k}
-                            style={[styles.roleBtn, role === k && styles.roleBtnOn]}
-                            onPress={() => setRole(k)}
-                            activeOpacity={0.8}
-                          >
-                            <Ionicons name={icon as any} size={18} color={role === k ? '#fff' : colors.primary} />
-                            <Text style={[styles.roleTxt, role === k && { color: '#fff' }]}>{l}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-
                       {/* Name fields (signup only) */}
                       {mode === 'signup' && (
                         <View style={styles.nameRow}>
@@ -511,7 +478,7 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
                     ) : (
                       <TouchableOpacity onPress={async () => {
                         setLoading(true);
-                        const res = role === 'owner' ? await sendOwnerRegOtp(identifier) : await sendSubscriberRegOtp(identifier);
+                        const res = await sendSubscriberOtp(identifier);
                         setLoading(false);
                         if (res.error) { setError(res.error); return; }
                         setSignupDevOtp(res.otp);
@@ -579,20 +546,6 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
                       {/* Step 1: Enter identifier */}
                       {forgotStep === 1 && (
                         <>
-                          <Text style={styles.otpSubText}>Account type</Text>
-                          <View style={styles.roleRow}>
-                            {([['seeker', 'Seeker', 'search'], ['owner', 'Owner', 'business']] as const).map(([k, l, icon]) => (
-                              <TouchableOpacity
-                                key={k}
-                                style={[styles.roleBtn, forgotRole === k && styles.roleBtnOn]}
-                                onPress={() => setForgotRole(k)}
-                              >
-                                <Ionicons name={icon as any} size={18} color={forgotRole === k ? '#fff' : colors.primary} />
-                                <Text style={[styles.roleTxt, forgotRole === k && { color: '#fff' }]}>{l}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-
                           <Text style={styles.label}>Registered email or phone number</Text>
                           <View style={styles.inputWrap}>
                             <Ionicons
@@ -637,9 +590,7 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
                             ) : (
                               <TouchableOpacity onPress={async () => {
                                 setLoading(true);
-                                const res = (forgotRole === 'owner')
-                                  ? await sendAuthOtp(forgotIdentifier)
-                                  : await sendSubscriberOtp(forgotIdentifier);
+                                const res = await sendSubscriberOtp(forgotIdentifier);
                                 setLoading(false);
                                 if (res.error) { setError(res.error); return; }
                                 setDevOtp(res.otp);
@@ -725,10 +676,7 @@ const styles = StyleSheet.create({
   brand: { fontSize: 26, fontWeight: '800', color: colors.charcoal, textAlign: 'center', marginTop: 14 },
   tagline: { fontSize: 15, color: colors.gray, textAlign: 'center', marginTop: 4, marginBottom: 20 },
   label: { fontSize: 13, fontWeight: '700', color: colors.charcoal, marginTop: 14, marginBottom: 8 },
-  roleRow: { flexDirection: 'row', gap: 12 },
-  roleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border },
-  roleBtnOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  roleTxt: { fontSize: 13, fontWeight: '700', color: colors.charcoal },
+
   nameRow: { flexDirection: 'row', gap: 12 },
   inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 16, height: 54, marginTop: 4 },
   input: { flex: 1, fontSize: 15, color: colors.charcoal },
