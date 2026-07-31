@@ -14,7 +14,7 @@ type Props = {
   onSuccess?: (reference: string) => void;
 };
 
-const PAYNOW_GATEWAY_URL = 'https://paynow.co.zw'; // Update to your actual gateway URL
+const PAYNOW_GATEWAY_URL = process.env.EXPO_PUBLIC_PAYNOW_GATEWAY_URL || 'http://localhost:3000';
 
 export default function SubscriptionModal({ visible, onClose, onSuccess }: Props) {
   const [phone, setPhone] = useState('');

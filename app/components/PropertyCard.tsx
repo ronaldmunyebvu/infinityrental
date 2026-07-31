@@ -19,8 +19,13 @@ export default function PropertyCard({ item }: { item: Property }) {
   const scale = useRef(new Animated.Value(1)).current;
   const heart = useRef(new Animated.Value(1)).current;
   const relativeTime = formatRelativeTime(item.created_at);
-  const activeId = user?.email || subscriberIdentifier || user?.phone;
-  const isOwner = Boolean(activeId && item.email_number && item.email_number === activeId);
+  const isOwner = Boolean(
+    item && (
+      item.user_id === user?.id ||
+      item.contact_email === user?.email ||
+      item.contact_phone === subscriberIdentifier
+    )
+  );
   const unlocked = hasSubscription || isOwner;
 
   const onIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();

@@ -26,3 +26,14 @@ android
 .metro-health-check*
 
 expo-env.d.ts
+
+# Payment gateway secrets
+server/node_modules/
+server/.env
+server/*.log
+
+# Local environment / runtime logs
+.env
+expo_run.log
+expo_run.err.log
+expo_output*.txt
