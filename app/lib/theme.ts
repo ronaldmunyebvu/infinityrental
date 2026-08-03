@@ -12,6 +12,8 @@ export const colors = {
   white: '#FFFFFF',
   success: '#38A169',
   star: '#F6AD55',
+  navy: '#0A2540',
+  lightBlue: '#7CC4FF',
 };
 
 export const shadow = {
@@ -31,3 +33,11 @@ export const cardShadow = {
 };
 
 export const radius = { sm: 10, md: 16, lg: 24, pill: 999 };
+
+export const fonts = {
+  regular: 'System',
+  medium: 'System',
+  semibold: 'System',
+  bold: 'System',
+  extrabold: 'System',
+};

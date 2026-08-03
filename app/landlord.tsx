@@ -18,6 +18,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import { useSubscriber } from '@/app/context/SubscriberContext';
 import { colors, radius, cardShadow, shadow } from '@/app/lib/theme';
 import { Property, PROPERTY_TYPES } from '@/app/lib/types';
+import { pricePeriodShort } from '@/app/lib/utils';
 
 export default function LandlordScreen() {
   const router = useRouter();
@@ -224,7 +225,7 @@ export default function LandlordScreen() {
                       <Text style={styles.typeBadgeText}>{prop.property_type}</Text>
                     </View>
                     <Text style={styles.listingPrice}>
-                    ${prop.price?.toLocaleString()}/mo
+                    ${prop.price?.toLocaleString()}{pricePeriodShort(prop.price_period)}
                     </Text>
                   </View>
                   <View style={styles.listingStats}>

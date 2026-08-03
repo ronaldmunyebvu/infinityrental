@@ -27,6 +27,8 @@ export interface Property {
   views?: number;
   likes?: number;
   rating?: number;
+  price_period?: string;
+  email_number?: string;
 }
 
 export interface Ad {
@@ -35,6 +37,7 @@ export interface Ad {
   title: string;
   description: string;
   cta_text?: string;
+  cta_url?: string;
   gradient_from?: string;
   gradient_to?: string;
 }

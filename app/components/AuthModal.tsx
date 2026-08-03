@@ -321,7 +321,7 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
 
               {/* Header */}
               <View style={styles.logo}><Ionicons name="home" size={28} color="#fff" /></View>
-              <Text style={styles.brand}><Text style={{ color: '#fff' }}>RENT</Text><Text style={{ color: colors.primary }}>ZIMBABWE</Text></Text>
+              <Text style={styles.brand}><Text style={{ color: colors.charcoal }}>RENT</Text><Text style={{ color: colors.primary }}>ZIMBABWE</Text></Text>
 
               {/* ═══════════════════════════════════════════════
                   SIGN IN / SIGN UP — STEP 1

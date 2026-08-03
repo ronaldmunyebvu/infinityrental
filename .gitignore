@@ -9,7 +9,6 @@ npm-debug.*
 *.mobileprovision
 *.orig.*
 web-build/
-assets/
 metro-cache/
 .metro-cache-*/
 
@@ -37,3 +36,5 @@ server/*.log
 expo_run.log
 expo_run.err.log
 expo_output*.txt
+*.log
+*.err.log

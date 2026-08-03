@@ -14,3 +14,12 @@ export function formatRelativeTime(dateStr?: string): string | null {
   if (days < 30) return `${Math.floor(days / 7)}w ago`;
   return `${Math.floor(days / 30)}mo ago`;
 }
+
+export function pricePeriodShort(period?: string): string {
+  const p = (period || '').toLowerCase();
+  if (p.includes('day')) return '/day';
+  if (p.includes('night')) return '/night';
+  if (p.includes('week')) return '/wk';
+  if (p.includes('month')) return '/mo';
+  return '/mo';
+}

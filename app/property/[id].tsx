@@ -29,17 +29,15 @@ export default function PropertyDetail() {
   const [showPay, setShowPay] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const isOwner = prop && (prop.user_id === user?.id || prop.contact_email === user?.email || prop.contact_phone === subscriberIdentifier);
+  const activeId = user?.email || subscriberIdentifier || user?.phone;
+  const isOwner = Boolean(prop && activeId && prop.email_number && prop.email_number === activeId);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('properties').select('*').eq('id', id).maybeSingle();
     const p = data as Property;
     setProp(p);
-    if (user || subscriberIdentifier) {
-      const subActive = user?.email || subscriberIdentifier || user?.phone;
-      const isOwnerCheck = p && (p.user_id === user?.id || p.contact_email === user?.email || p.contact_phone === subActive);
-      setUnlocked(hasSubscription || !!isOwnerCheck);
-    }
+    const isOwnerCheck = Boolean(p && activeId && p.email_number && p.email_number === activeId);
+    setUnlocked(hasSubscription || isOwnerCheck);
     setLoading(false);
   }, [id, user, subscriberIdentifier, hasSubscription]);
 
@@ -146,7 +144,7 @@ export default function PropertyDetail() {
           <View style={styles.priceCard}>
             <View>
               <Text style={styles.priceBig}>${prop.price}</Text>
-              <Text style={styles.priceUnit}>per month</Text>
+              <Text style={styles.priceUnit}>{prop.price_period || 'per month'}</Text>
             </View>
             <View style={styles.specsRow}>
               <Spec icon="bed-outline" label={`${prop.bedrooms} Beds`} />

@@ -8,7 +8,7 @@ import { Property } from '@/app/lib/types';
 import { useAuth } from '@/app/context/AuthContext';
 import { useSubscriber } from '@/app/context/SubscriberContext';
 import { useFavorites } from '@/app/context/FavoritesContext';
-import { formatRelativeTime } from '@/app/lib/utils';
+import { formatRelativeTime, pricePeriodShort } from '@/app/lib/utils';
 
 export default function PropertyCard({ item }: { item: Property }) {
   const router = useRouter();
@@ -19,13 +19,8 @@ export default function PropertyCard({ item }: { item: Property }) {
   const scale = useRef(new Animated.Value(1)).current;
   const heart = useRef(new Animated.Value(1)).current;
   const relativeTime = formatRelativeTime(item.created_at);
-  const isOwner = Boolean(
-    item && (
-      item.user_id === user?.id ||
-      item.contact_email === user?.email ||
-      item.contact_phone === subscriberIdentifier
-    )
-  );
+  const activeId = user?.email || subscriberIdentifier || user?.phone;
+  const isOwner = Boolean(item && activeId && item.email_number && item.email_number === activeId);
   const unlocked = hasSubscription || isOwner;
 
   const onIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();
@@ -63,7 +58,7 @@ export default function PropertyCard({ item }: { item: Property }) {
           </TouchableOpacity>
           <View style={styles.priceTag}>
             <Text style={styles.priceTxt}>${item.price}</Text>
-            <Text style={styles.priceSub}>/mo</Text>
+            <Text style={styles.priceSub}>{pricePeriodShort(item.price_period)}</Text>
           </View>
           {relativeTime && (
             <View style={styles.timeBadge}>

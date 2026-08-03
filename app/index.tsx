@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, RefreshControl } from 'react-native';
-import { ImageBackground } from 'expo-image';
+import { Image, ImageBackground } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/app/lib/supabase';
 import { useAuth } from '@/app/context/AuthContext';
+import { useSubscriber } from '@/app/context/SubscriberContext';
 import { colors, radius, shadow } from '@/app/lib/theme';
 import { Property, HERO_IMAGE, PROPERTY_TYPES, DENSITY_TYPES } from '@/app/lib/types';
 import PropertyCard from '@/app/components/PropertyCard';
@@ -13,6 +14,7 @@ import FilterChips from '@/app/components/FilterChips';
 import BottomNav from '@/app/components/BottomNav';
 import AdCarousel from '@/app/components/AdCarousel';
 import { SkeletonGrid } from '@/app/components/SkeletonCard';
+import { pricePeriodShort } from '@/app/lib/utils';
 
 const HERO = 'https://d64gsuwffb70l.cloudfront.net/6a3b8ba1dd44bfd49bd2cbd5_1782287526231_fe633117.png';
 
@@ -61,6 +63,8 @@ function TypewriterHeadline() {
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
+  const { subscriberIdentifier } = useSubscriber();
+  const isLoggedIn = !!user || !!subscriberIdentifier;
   const [props, setProps] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -101,25 +105,41 @@ export default function Home() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.hello}>Find your</Text>
-            <Text style={styles.headline}>Perfect Home</Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => router.replace('/')}
+            activeOpacity={0.85}
+            style={styles.logoWrap}
+          >
+            <Image source={require('../assets/images/logo.png')} style={styles.logo} contentFit="contain" />
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
-              style={styles.headerBtn}
+              style={styles.moreBtn}
               activeOpacity={0.8}
               onPress={() => router.push('/more')}
             >
-              <Ionicons name="ellipsis-horizontal" size={20} color={colors.primary} />
+              <Ionicons name="ellipsis-horizontal" size={18} color={colors.primary} />
+              <Text style={styles.moreTxt}>More</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.avatar}
-              activeOpacity={0.8}
-              onPress={() => router.push(user ? '/landlord' : '/auth')}
-            >
-              <Ionicons name={user ? 'person' : 'log-in-outline'} size={20} color="#fff" />
-            </TouchableOpacity>
+            {isLoggedIn ? (
+              <TouchableOpacity
+                style={styles.portalBtn}
+                activeOpacity={0.8}
+                onPress={() => router.push('/landlord')}
+              >
+                <Ionicons name="person" size={18} color="#fff" />
+                <Text style={styles.portalTxt}>Portal</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.signInBtn}
+                activeOpacity={0.8}
+                onPress={() => router.push('/auth')}
+              >
+                <Ionicons name="log-in-outline" size={16} color="#fff" />
+                <Text style={styles.signInTxt}>Sign In</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -144,7 +164,8 @@ export default function Home() {
             onPress={() => setShowAdv(!showAdv)}
             activeOpacity={0.8}
           >
-            <Ionicons name="options-outline" size={18} color={showAdv ? '#fff' : colors.primary} />
+            <Ionicons name="options-outline" size={16} color={showAdv ? '#fff' : colors.primary} />
+            <Text style={[styles.filterTxt, showAdv && { color: '#fff' }]}>Filters</Text>
           </TouchableOpacity>
         </View>
 
@@ -234,7 +255,7 @@ export default function Home() {
               {featured.map((p) => (
                 <TouchableOpacity key={p.id} activeOpacity={0.9} style={styles.fcard} onPress={() => router.push(`/property/${p.id}`)}>
                   <ImageBackground source={{ uri: p.images?.[0] }} style={styles.fimg} imageStyle={{ borderRadius: radius.md }}>
-                    <View style={styles.fprice}><Text style={styles.fpriceTxt}>${p.price}/mo</Text></View>
+                    <View style={styles.fprice}><Text style={styles.fpriceTxt}>${p.price}{pricePeriodShort(p.price_period)}</Text></View>
                     {p.rating != null && (
                       <View style={styles.frating}>
                         <Ionicons name="star" size={10} color="#fff" />
@@ -297,13 +318,18 @@ export default function Home() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8 },
-  hello: { fontSize: 15, color: colors.gray, fontWeight: '500' },
-  headline: { fontSize: 28, fontWeight: '800', color: colors.charcoal, marginTop: -2 },
-  avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
-  headerBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.seafoam, alignItems: 'center', justifyContent: 'center', ...shadow },
+  logoWrap: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  logo: { height: 44, width: 66 },
+  moreBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.seafoam, ...shadow },
+  moreTxt: { fontSize: 13.5, fontWeight: '700', color: colors.primary },
+  portalBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.primary, ...shadow },
+  portalTxt: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
+  signInBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.primary, ...shadow },
+  signInTxt: { color: '#fff', fontSize: 13.5, fontWeight: '700' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, marginHorizontal: 20, marginTop: 18, paddingHorizontal: 16, borderRadius: radius.md, gap: 10, height: 52, ...shadow },
   searchInput: { flex: 1, fontSize: 15, color: colors.charcoal },
-  filterBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.seafoam, justifyContent: 'center', alignItems: 'center' },
+  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 38, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.seafoam },
+  filterTxt: { fontSize: 13, fontWeight: '700', color: colors.primary },
   filterBtnActive: { backgroundColor: colors.primary },
   advPanel: { backgroundColor: colors.white, marginHorizontal: 20, marginTop: 8, borderRadius: radius.md, padding: 16, ...shadow },
   advLabel: { fontSize: 13, fontWeight: '600', color: colors.charcoal, marginBottom: 8 },
