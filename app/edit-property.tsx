@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TextInput, StyleSheet, TouchableOpacity, Image, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase, uploadPropertyImage, deletePropertyImages } from '@/app/lib/supabase';
+import { showAlert } from '@/app/lib/alerts';
+import { normalizeZimPhone } from '@/app/lib/utils';
 import { useAuth } from '@/app/context/AuthContext';
 import { useSubscriber } from '@/app/context/SubscriberContext';
 import { colors, radius, shadow } from '@/app/lib/theme';
@@ -52,7 +54,7 @@ export default function EditPropertyScreen() {
       const { data, error } = await supabase.from('properties').select('*').eq('id', id).single();
       if (error) throw error;
       if (!data) {
-        Alert.alert('Not found', 'Property not found.');
+        showAlert('Not found', 'Property not found.');
         router.back();
         return;
       }
@@ -70,7 +72,7 @@ export default function EditPropertyScreen() {
       setContactEmail(data.contact_email || '');
       setContactWhatsapp(data.contact_whatsapp || '');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load property.');
+      showAlert('Error', err.message || 'Failed to load property.');
       router.back();
     } finally {
       setLoading(false);
@@ -80,13 +82,13 @@ export default function EditPropertyScreen() {
   const pickImages = async () => {
     const remaining = 11 - totalImages;
     if (remaining <= 0) {
-      Alert.alert('Limit reached', 'Maximum 11 images allowed.');
+      showAlert('Limit reached', 'Maximum 11 images allowed.');
       return;
     }
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant photo library access.');
+      showAlert('Permission needed', 'Please grant photo library access.');
       return;
     }
 
@@ -109,13 +111,13 @@ export default function EditPropertyScreen() {
 
   const takePhoto = async () => {
     if (totalImages >= 11) {
-      Alert.alert('Limit reached', 'Maximum 11 images allowed.');
+      showAlert('Limit reached', 'Maximum 11 images allowed.');
       return;
     }
 
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant camera access.');
+      showAlert('Permission needed', 'Please grant camera access.');
       return;
     }
 
@@ -148,14 +150,13 @@ export default function EditPropertyScreen() {
 
   const handleSubmit = async () => {
     if (!user || !id) return;
-    if (!title.trim()) return Alert.alert('Missing', 'Title is required.');
-    if (!description.trim()) return Alert.alert('Missing', 'Description is required.');
-    if (!price || isNaN(Number(price)) || Number(price) <= 0) return Alert.alert('Missing', 'Enter a valid price.');
-    if (!location.trim()) return Alert.alert('Missing', 'Location is required.');
+    if (!title.trim()) return showAlert('Missing', 'Title is required.');
+    if (!description.trim()) return showAlert('Missing', 'Description is required.');
+    if (!price || isNaN(Number(price)) || Number(price) <= 0) return showAlert('Missing', 'Enter a valid price.');
+    if (!location.trim()) return showAlert('Missing', 'Location is required.');
 
     const finalTotal = existingImages.length + newImages.length;
-    if (finalTotal < 3) return Alert.alert('Images required', 'At least 3 images are needed.');
-    if (finalTotal > 11) return Alert.alert('Too many', 'Maximum 11 images allowed.');
+    if (finalTotal > 11) return showAlert('Too many', 'Maximum 11 images allowed.');
 
     setUploading(true);
     setUploadProgress('Uploading new images...');
@@ -175,32 +176,42 @@ export default function EditPropertyScreen() {
       }
 
       const finalImages = [...existingImages, ...uploadedUrls];
+      const phone = normalizeZimPhone(contactPhone);
+      const accountIdentifier = user?.email || subscriberIdentifier || contactEmail.trim() || phone;
 
       setUploadProgress('Saving changes...');
 
-      const { error } = await supabase.from('properties').update({
-        title: title.trim(),
-        description: description.trim(),
-        property_type: propertyType,
-        price: Number(price),
-        location: location.trim(),
-        bedrooms,
-        bathrooms,
-        amenities: selectedAmenities,
-        images: finalImages,
-        contact_name: contactName.trim(),
-        contact_phone: contactPhone.trim(),
-        contact_email: contactEmail.trim(),
-        contact_whatsapp: contactWhatsapp.trim(),
-      }).eq('id', id);
+      let updateQuery = supabase
+        .from('properties')
+        .update({
+          title: title.trim(),
+          description: description.trim(),
+          property_type: propertyType,
+          price: Number(price),
+          location: location.trim(),
+          bedrooms,
+          bathrooms,
+          amenities: selectedAmenities,
+          images: finalImages,
+          email_number: accountIdentifier,
+          contact_name: contactName.trim() || 'Owner',
+          contact_phone: phone,
+          contact_email: contactEmail.trim(),
+          contact_whatsapp: contactWhatsapp.trim() || phone.replace(/\D/g, ''),
+        })
+        .eq('id', id);
+      if (accountIdentifier) {
+        updateQuery = updateQuery.or(`email_number.eq.${accountIdentifier},contact_phone.eq.${accountIdentifier},contact_email.eq.${accountIdentifier}`);
+      }
+      const { error } = await updateQuery;
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Property updated!', [
+      showAlert('Success', 'Property updated!', [
         { text: 'OK', onPress: () => router.replace('/landlord') },
       ]);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Something went wrong.');
+      showAlert('Error', err.message || 'Something went wrong.');
     } finally {
       setUploading(false);
       setUploadProgress('');
@@ -343,8 +354,8 @@ export default function EditPropertyScreen() {
             })}
           </View>
 
-          {renderField('Photos', true)}
-          <Text style={styles.hint}>Minimum 3, maximum 11 photos. First photo is the cover.</Text>
+          {renderField('Photos')}
+          <Text style={styles.hint}>Optional. Maximum 11 photos. First photo is the cover.</Text>
           <View style={styles.imageGrid}>
             {existingImages.map((uri, idx) => (
               <View key={`existing-${idx}`} style={styles.imageWrap}>

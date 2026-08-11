@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  Alert,
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +15,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/app/lib/supabase';
 import { useAuth } from '@/app/context/AuthContext';
 import { useSubscriber } from '@/app/context/SubscriberContext';
+import ConfirmModal from '@/app/components/ConfirmModal';
 import { colors, radius, cardShadow, shadow } from '@/app/lib/theme';
 import { Property, PROPERTY_TYPES } from '@/app/lib/types';
 import { pricePeriodShort } from '@/app/lib/utils';
@@ -30,20 +30,28 @@ export default function LandlordScreen() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [typeFilter, setTypeFilter] = useState('All');
+  const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchProperties = useCallback(async () => {
-    if (!user?.id) return;
+    const activeId = user?.email || subscriberIdentifier;
+    if (!activeId) {
+      setProperties([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('properties')
       .select('*')
-      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
+    query = query.or(`email_number.eq.${activeId},contact_phone.eq.${activeId},contact_email.eq.${activeId}`);
+    const { data, error } = await query;
     if (!error && data) {
       setProperties(data);
     }
     setLoading(false);
-  }, [user?.id]);
+  }, [user?.email, subscriberIdentifier]);
 
   useFocusEffect(
     useCallback(() => {
@@ -58,19 +66,24 @@ export default function LandlordScreen() {
   };
 
   const handleDelete = (prop: Property) => {
-    Alert.alert('Delete Listing', `Delete "${prop.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase.from('properties').delete().eq('id', prop.id);
-          if (!error) {
-            setProperties((prev) => prev.filter((p) => p.id !== prop.id));
-          }
-        },
-      },
-    ]);
+    setDeleteTarget(prop);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const activeId = user?.email || subscriberIdentifier;
+    if (!activeId) return;
+    setDeleting(true);
+    const { error } = await supabase
+      .from('properties')
+      .delete()
+      .eq('id', deleteTarget.id)
+      .or(`email_number.eq.${activeId},contact_phone.eq.${activeId},contact_email.eq.${activeId}`);
+    if (!error) {
+      setProperties((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const totalListings = properties.length;
@@ -98,9 +111,16 @@ export default function LandlordScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>Landlord Portal</Text>
-          <Text style={styles.subGreeting}>{subscriberIdentifier || user?.email}</Text>
+        <View style={styles.headerLeft}>
+          {router.canGoBack() && (
+            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={22} color={colors.charcoal} />
+            </TouchableOpacity>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greeting}>Landlord Portal</Text>
+            <Text style={styles.subGreeting}>{subscriberIdentifier || user?.email}</Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={colors.coral} />
@@ -266,6 +286,17 @@ export default function LandlordScreen() {
           )}
         </ScrollView>
       )}
+
+      <ConfirmModal
+        visible={deleteTarget !== null}
+        title="Delete Listing"
+        message={deleteTarget ? `Delete "${deleteTarget.title}"? This cannot be undone.` : ''}
+        confirmText={deleting ? 'Deleting...' : 'Delete'}
+        cancelText="Cancel"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -280,6 +311,20 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     backgroundColor: colors.white,
     ...shadow,
+  },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg,
   },
   greeting: { fontSize: 22, fontWeight: '700', color: colors.charcoal },
   subGreeting: { fontSize: 13, color: colors.gray, marginTop: 2 },

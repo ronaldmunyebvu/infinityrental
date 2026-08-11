@@ -23,3 +23,12 @@ export function pricePeriodShort(period?: string): string {
   if (p.includes('month')) return '/mo';
   return '/mo';
 }
+
+export function normalizeZimPhone(raw: string): string {
+  let p = (raw || '').trim();
+  if (!p) return '';
+  if (p.startsWith('+263')) return p;
+  if (p.startsWith('263')) return '+' + p;
+  if (p.startsWith('0')) p = p.substring(1);
+  return '+263' + p;
+}
