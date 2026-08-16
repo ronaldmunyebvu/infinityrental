@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_PAYNOW_GATEWAY_URL": "http://192.168.43.95:3000"
+        "EXPO_PUBLIC_PAYNOW_GATEWAY_URL": "https://infinityhomesgateway-tau.vercel.app"
       }
     },
     "preview": {
@@ -17,13 +17,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_PAYNOW_GATEWAY_URL": "http://192.168.43.95:3000"
+        "EXPO_PUBLIC_PAYNOW_GATEWAY_URL": "https://infinityhomesgateway-tau.vercel.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_PAYNOW_GATEWAY_URL": "http://192.168.43.95:3000"
+        "EXPO_PUBLIC_PAYNOW_GATEWAY_URL": "https://infinityhomesgateway-tau.vercel.app"
       }
     }
   }

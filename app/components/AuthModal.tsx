@@ -32,7 +32,7 @@ type Props = {
 
 export default function AuthModal({ visible, onClose, initialMode = 'signin', onSuccess }: Props) {
   const { signIn, signUp, verifyAuthOtpAndReset } = useAuth();
-  const { loginSubscriber, registerSubscriber, sendSubscriberOtp, verifySubscriberRegOtp, verifySubscriberOtpAndReset } = useSubscriber();
+  const { loginSubscriber, registerSubscriber, sendSubscriberOtp, sendSubscriberRegOtp, verifySubscriberRegOtp, verifySubscriberOtpAndReset } = useSubscriber();
 
   const [mode, setMode] = useState<ModalMode>(initialMode);
   const [identifier, setIdentifier] = useState('');
@@ -155,7 +155,7 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
 
     // Phone sign-up: send OTP first
     if (mode === 'signup' && isPhone(identifier)) {
-      const res = await sendSubscriberOtp(identifier);
+      const res = await sendSubscriberRegOtp(identifier);
       setLoading(false);
       if (res.error) { setError(res.error); return; }
       setSignupDevOtp(res.otp);
@@ -478,7 +478,7 @@ export default function AuthModal({ visible, onClose, initialMode = 'signin', on
                     ) : (
                       <TouchableOpacity onPress={async () => {
                         setLoading(true);
-                        const res = await sendSubscriberOtp(identifier);
+                        const res = await sendSubscriberRegOtp(identifier);
                         setLoading(false);
                         if (res.error) { setError(res.error); return; }
                         setSignupDevOtp(res.otp);
