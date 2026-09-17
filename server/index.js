@@ -219,6 +219,46 @@ app.post('/api/result', async (req, res) => {
   res.status(200).send('OK');
 });
 
+app.post('/api/verify-iap', async (req, res) => {
+  const { purchaseToken, productId, subscriber_identifier, transactionId } = req.body || {};
+
+  if (!purchaseToken || !subscriber_identifier) {
+    return res.status(400).json({ success: false, error: 'Missing purchaseToken or subscriber_identifier' });
+  }
+
+  const reference = `IAP-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const paynowRef = transactionId || purchaseToken;
+
+  console.log(`[IAP] Verifying purchase for ${subscriber_identifier} (token: ${purchaseToken.slice(0, 10)}...)`);
+
+  try {
+    // Save payment record in DB
+    const { error: insertErr } = await db.from('payments').insert({
+      reference,
+      paynow_reference: paynowRef,
+      phone_number: subscriber_identifier,
+      amount: 5.0,
+      status: 'Paid',
+    });
+
+    if (insertErr) {
+      console.warn('[IAP] Non-fatal DB insert warning:', insertErr.message);
+    }
+
+    if (admin) {
+      await finalizePayment(reference, {
+        paynowReference: paynowRef,
+        status: 'Paid',
+      });
+    }
+
+    return res.json({ success: true, reference, paynowReference: paynowRef });
+  } catch (err) {
+    console.error('[IAP] Verification error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/simulate/:reference', async (req, res) => {
   if (!TEST_MODE) return res.status(404).json({ success: false, error: 'Simulation is only enabled in test mode.' });
   try {

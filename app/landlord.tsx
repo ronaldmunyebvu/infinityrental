@@ -59,9 +59,21 @@ export default function LandlordScreen() {
     }, [fetchProperties])
   );
 
+  const { signOut, deleteAccount } = useAuth();
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+
   const handleLogout = async () => {
     await signOut();
     await logoutSubscriber();
+    router.replace('/');
+  };
+
+  const confirmDeleteAccount = async () => {
+    setShowDeleteAccountModal(false);
+    setDeleting(true);
+    await deleteAccount();
+    await logoutSubscriber();
+    setDeleting(false);
     router.replace('/');
   };
 
@@ -122,9 +134,14 @@ export default function LandlordScreen() {
             <Text style={styles.subGreeting}>{subscriberIdentifier || user?.email}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color={colors.coral} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: '#FEE2E2' }]} onPress={() => setShowDeleteAccountModal(true)} title="Delete Account">
+            <Ionicons name="trash-outline" size={18} color="#DC2626" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color={colors.coral} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -296,6 +313,17 @@ export default function LandlordScreen() {
         destructive
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmModal
+        visible={showDeleteAccountModal}
+        title="Delete Account & Data"
+        message="Are you sure you want to delete your account? All your property listings and uploaded photos will be permanently deleted."
+        confirmText={deleting ? 'Deleting Account...' : 'Delete Permanently'}
+        cancelText="Cancel"
+        destructive
+        onConfirm={confirmDeleteAccount}
+        onCancel={() => setShowDeleteAccountModal(false)}
       />
     </SafeAreaView>
   );

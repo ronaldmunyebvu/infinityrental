@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '@/app/lib/supabase';
+import { supabase, deletePropertyImages } from '@/app/lib/supabase';
 
 function isEmail(value: string): boolean {
   return /\S+@\S+\.\S+/.test(value.trim());
@@ -16,6 +16,7 @@ type AuthCtx = {
   signUp: (identifier: string, password: string, role: 'owner' | 'seeker', firstName?: string, lastName?: string) => Promise<{ error?: string; role?: string; needsEmailVerification?: boolean }>;
   signIn: (identifier: string, password: string) => Promise<{ error?: string; role?: string; needsEmailVerification?: boolean }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error?: string }>;
   sendAuthOtp: (identifier: string) => Promise<{ error?: string; otp?: string }>;
   verifyAuthOtpAndReset: (identifier: string, otp: string, newPassword: string) => Promise<{ error?: string }>;
   sendOwnerRegOtp: (identifier: string) => Promise<{ error?: string; otp?: string }>;
@@ -94,6 +95,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const deleteAccount = async (): Promise<{ error?: string }> => {
+    if (!user) return { error: 'No user logged in.' };
+    const userIdentifier = user.email || user.phone || user.id;
+
+    try {
+      // 1. Fetch user's property listings to collect image URLs
+      const { data: userProps } = await supabase
+        .from('properties')
+        .select('images, image_url, id')
+        .or(`user_id.eq.${user.id},email_number.eq.${userIdentifier},contact_phone.eq.${userIdentifier},contact_email.eq.${userIdentifier}`);
+
+      if (userProps && userProps.length > 0) {
+        const allUrls: string[] = [];
+        for (const p of userProps) {
+          if (Array.isArray(p.images)) allUrls.push(...p.images);
+          if (typeof p.image_url === 'string' && p.image_url) allUrls.push(p.image_url);
+        }
+
+        // 2. Delete all image files from Supabase Storage bucket
+        if (allUrls.length > 0) {
+          await deletePropertyImages(allUrls).catch((e) => console.warn('Warning deleting storage images:', e));
+        }
+
+        // 3. Delete property listings from database
+        await supabase
+          .from('properties')
+          .delete()
+          .or(`user_id.eq.${user.id},email_number.eq.${userIdentifier},contact_phone.eq.${userIdentifier},contact_email.eq.${userIdentifier}`);
+      }
+
+      // 4. Delete user profile record
+      const { error: dbErr } = await supabase.from('users').delete().eq('id', user.id);
+      if (dbErr) console.warn('Warning deleting user profile record:', dbErr.message);
+
+      // 5. Sign out user
+      await supabase.auth.signOut();
+      return {};
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to delete account.' };
+    }
+  };
+
   const sendAuthOtp = async (identifier: string): Promise<{ error?: string; otp?: string }> => {
     try {
       const { data, error } = await supabase.functions.invoke('send-otp', {
@@ -152,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      user, loading, signUp, signIn, signOut,
+      user, loading, signUp, signIn, signOut, deleteAccount,
       sendAuthOtp, verifyAuthOtpAndReset,
       sendOwnerRegOtp, verifyOwnerRegOtp,
     }}>

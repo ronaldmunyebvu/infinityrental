@@ -13,6 +13,9 @@
     },
     "android": {
       "package": "com.ronaldmunyebvu.rentals",
+      "permissions": [
+        "com.android.vending.BILLING"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
